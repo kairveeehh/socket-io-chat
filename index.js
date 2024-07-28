@@ -19,7 +19,7 @@ function deleteMessage(timestamp) {
 }
 
 io.on('connection', (socket) => {
-  // Send existing messages to the new client
+
   socket.emit('initial messages', messages);
 
   socket.on('chat message', (msg) => {
@@ -28,8 +28,8 @@ io.on('connection', (socket) => {
     messages.push(newMessage);
     io.emit('chat message', newMessage);
 
-    // Set a timeout to delete the message after 2 minutes
-    setTimeout(() => deleteMessage(timestamp), 2 * 60 * 1000); // 2 minutes in milliseconds
+
+    setTimeout(() => deleteMessage(timestamp), 2 * 60 * 1000); 
   });
 });
 
