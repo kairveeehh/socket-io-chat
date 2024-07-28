@@ -35,7 +35,17 @@
       #messages > li { padding: 0.5rem 1rem; }
       #messages > li:nth-child(odd) { background: #efefef; }
 
-      #emoji-button { 
+      #emoji-button  { 
+        background: #333; 
+        border: none; 
+        padding: 0 1rem; 
+        margin: 0.25rem; 
+        border-radius: 3px; 
+        outline: none; 
+        color: #fff; 
+        cursor: pointer;
+      }
+      #camera-button  { 
         background: #333; 
         border: none; 
         padding: 0 1rem; 
@@ -71,6 +81,8 @@
     <form id="form" action="">
       <input id="input" autocomplete="off" />
       <button id="emoji-button" type="button">😊</button>
+      <label for="file-input" id="camera-button">📷</label>
+      <input type="file" id="file-input" accept="image/*" style="display: none;">
       <button>Send</button>
     </form>
     <emoji-picker id="emoji-picker"></emoji-picker>
@@ -87,28 +99,31 @@
       
       });
       });
-    const socket = io();
+      const socket = io();
 
-    const form = document.getElementById('form');
-    const input = document.getElementById('input');
-    const messages = document.getElementById('messages');
-    const emojiButton = document.getElementById('emoji-button');
-    const emojiPicker = document.getElementById('emoji-picker');
+const form = document.getElementById('form');
+const input = document.getElementById('input');
+const messages = document.getElementById('messages');
+const emojiButton = document.getElementById('emoji-button');
+const emojiPicker = document.getElementById('emoji-picker');
+const fileInput = document.getElementById('file-input');
 
-    let storedMessages = [];
+let storedMessages = [];
 
-    function addMessageToDOM(msg) {
-      const item = document.createElement('li');
-      item.innerHTML = `
-        <div class="message-container" data-timestamp="${msg.timestamp}">
-          <span class="message-text">${msg.text}</span>
-          <span class="message-timer"></span>
-        </div>
-      `;
-      messages.appendChild(item);
-      updateMessageTimer(msg.timestamp);
-      window.scrollTo(0, document.body.scrollHeight);
-    }
+function addMessageToDOM(msg) {
+    const item = document.createElement('li');
+    item.innerHTML = `
+      <div class="message-container" data-timestamp="${msg.timestamp}">
+        ${msg.type === 'image' 
+          ? `<img src="${msg.content}" alt="User uploaded image" style="max-width: 200px; max-height: 200px;">` 
+          : `<span class="message-text">${msg.content}</span>`}
+        <span class="message-timer"></span>
+      </div>
+    `;
+    messages.appendChild(item);
+    updateMessageTimer(msg.timestamp);
+    window.scrollTo(0, document.body.scrollHeight);
+  }
 
     function updateMessageTimer(timestamp) {
       const container = document.querySelector(`[data-timestamp="${timestamp}"]`);
@@ -143,14 +158,24 @@
       emojiPicker.style.display = 'none';
     });
 
+  
     form.addEventListener('submit', (e) => {
-      e.preventDefault();
-      if (input.value) {
-        socket.emit('chat message', input.value);
-        input.value = '';
-      }
-    });
-
+    e.preventDefault();
+    if (input.value) {
+      socket.emit('chat message', { type: 'text', content: input.value });
+      input.value = '';
+    }
+  });
+  fileInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        socket.emit('chat message', { type: 'image', content: event.target.result });
+      };
+      reader.readAsDataURL(file);
+    }
+  });
     socket.on('initial messages', (initialMessages) => {
       storedMessages = initialMessages;
       localStorage.setItem('chatMessages', JSON.stringify(storedMessages));
