@@ -55,6 +55,16 @@
         color: #fff; 
         cursor: pointer;
       }
+      #camera-stream-button  { 
+        background: #333; 
+        border: none; 
+        padding: 0 1rem; 
+        margin: 0.25rem; 
+        border-radius: 3px; 
+        outline: none; 
+        color: #fff; 
+        cursor: pointer;
+      }
       #emoji-picker {
         position: fixed;
         bottom: 70px;
@@ -62,16 +72,35 @@
         z-index: 9999;
         display: none;
       }
-      .message-container {
-        display: flex;
-        justify-content: space-between;
+      #items {
+        display: flex ;
+        flex-direction: column;
+        column-gap: 300px;
       }
-      .message-text {
-        flex-grow: 1;
+      #camera-modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.8);
+        justify-content: center;
+        align-items: center;
+        z-index: 10000;
       }
-      .message-timer {
-        font-size: 0.8em;
-        color: #999;
+      #camera-modal video {
+        max-width: 100%;
+        max-height: 100%;
+      }
+      #camera-modal button {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        background: #fff;
+        border: none;
+        padding: 10px;
+        cursor: pointer;
       }
     </style>
   </head>
@@ -81,49 +110,65 @@
     <form id="form" action="">
       <input id="input" autocomplete="off" />
       <button id="emoji-button" type="button">😊</button>
-      <label for="file-input" id="camera-button">📷</label>
+      <label for="file-input" id="camera-button">📁</label>
       <input type="file" id="file-input" accept="image/*" style="display: none;">
+      <button id="camera-stream-button" type="button">📷</button>
       <button>Send</button>
     </form>
+    <div id="camera-modal">
+      <video id="camera-stream" autoplay></video>
+    
+      <div id="items">
+        <button id="cancel-picture"> Cancel</button>
+        <button id="take-picture">📸</button>
+      </div>
+      
+     
+    </div>
     <emoji-picker id="emoji-picker"></emoji-picker>
   </body>
   <script src="/socket.io/socket.io.js"></script>
   <script>
-      document.addEventListener('keydown', (e) => {
-        if (e.key === 'PRT SC' || (e.ctrlKey && e.key === 'p') || (e.ctrlKey && e.key === 'P')) {
-          e.preventDefault();
-          alert('Screenshots are not allowed on this page.');
-        }
-        document.addEventListener('contextmenu', (e) => {
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'PRT SC' || (e.ctrlKey && e.key === 'p') || (e.ctrlKey && e.key === 'P')) {
         e.preventDefault();
-      
+        alert('Screenshots are not allowed on this page.');
+      }
+      document.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
       });
-      });
-      const socket = io();
+    });
+    
+    const socket = io();
 
-const form = document.getElementById('form');
-const input = document.getElementById('input');
-const messages = document.getElementById('messages');
-const emojiButton = document.getElementById('emoji-button');
-const emojiPicker = document.getElementById('emoji-picker');
-const fileInput = document.getElementById('file-input');
+    const form = document.getElementById('form');
+    const input = document.getElementById('input');
+    const messages = document.getElementById('messages');
+    const emojiButton = document.getElementById('emoji-button');
+    const emojiPicker = document.getElementById('emoji-picker');
+    const fileInput = document.getElementById('file-input');
+    const cameraStreamButton = document.getElementById('camera-stream-button');
+    const cameraModal = document.getElementById('camera-modal');
+    const cameraStream = document.getElementById('camera-stream');
+    const takePictureButton = document.getElementById('take-picture');
+    const cancel = document.getElementById('cancel-picture');
 
-let storedMessages = [];
+    let storedMessages = [];
 
-function addMessageToDOM(msg) {
-    const item = document.createElement('li');
-    item.innerHTML = `
-      <div class="message-container" data-timestamp="${msg.timestamp}">
-        ${msg.type === 'image' 
-          ? `<img src="${msg.content}" alt="User uploaded image" style="max-width: 200px; max-height: 200px;">` 
-          : `<span class="message-text">${msg.content}</span>`}
-        <span class="message-timer"></span>
-      </div>
-    `;
-    messages.appendChild(item);
-    updateMessageTimer(msg.timestamp);
-    window.scrollTo(0, document.body.scrollHeight);
-  }
+    function addMessageToDOM(msg) {
+      const item = document.createElement('li');
+      item.innerHTML = `
+        <div class="message-container" data-timestamp="${msg.timestamp}">
+          ${msg.type === 'image' 
+            ? `<img src="${msg.content}" alt="User uploaded image" style="max-width: 200px; max-height: 200px;">` 
+            : `<span class="message-text">${msg.content}</span>`}
+          <span class="message-timer"></span>
+        </div>
+      `;
+      messages.appendChild(item);
+      updateMessageTimer(msg.timestamp);
+      window.scrollTo(0, document.body.scrollHeight);
+    }
 
     function updateMessageTimer(timestamp) {
       const container = document.querySelector(`[data-timestamp="${timestamp}"]`);
@@ -158,24 +203,52 @@ function addMessageToDOM(msg) {
       emojiPicker.style.display = 'none';
     });
 
-  
+    cameraStreamButton.addEventListener('click', async () => {
+      cameraModal.style.display = 'flex';
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      cameraStream.srcObject = stream;
+    });
+
+    takePictureButton.addEventListener('click', () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = cameraStream.videoWidth;
+      canvas.height = cameraStream.videoHeight;
+      const context = canvas.getContext('2d');
+      context.drawImage(cameraStream, 0, 0, canvas.width, canvas.height);
+      const imageData = canvas.toDataURL('image/png');
+      socket.emit('chat message', { type: 'image', content: imageData });
+      stopCamera();
+    });
+    cancel.addEventListener('click', () => {
+      stopCamera();
+    });
+    function stopCamera() {
+      const stream = cameraStream.srcObject;
+      const tracks = stream.getTracks();
+      tracks.forEach(track => track.stop());
+      cameraStream.srcObject = null;
+      cameraModal.style.display = 'none';
+    }
+
     form.addEventListener('submit', (e) => {
-    e.preventDefault();
-    if (input.value) {
-      socket.emit('chat message', { type: 'text', content: input.value });
-      input.value = '';
-    }
-  });
-  fileInput.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        socket.emit('chat message', { type: 'image', content: event.target.result });
-      };
-      reader.readAsDataURL(file);
-    }
-  });
+      e.preventDefault();
+      if (input.value) {
+        socket.emit('chat message', { type: 'text', content: input.value });
+        input.value = '';
+      }
+    });
+
+    fileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          socket.emit('chat message', { type: 'image', content: event.target.result });
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+
     socket.on('initial messages', (initialMessages) => {
       storedMessages = initialMessages;
       localStorage.setItem('chatMessages', JSON.stringify(storedMessages));
