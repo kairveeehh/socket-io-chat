@@ -73,10 +73,10 @@
         display: none;
       }
       #items {
-        display: flex ;
-        flex-direction: column;
-        column-gap: 300px;
-      }
+  display: flex;
+  justify-content: space-between; /* Space buttons evenly */
+  width: 200px; /* Adjust width as needed */
+}
       #camera-modal {
         display: none;
         position: fixed;
@@ -102,6 +102,9 @@
         padding: 10px;
         cursor: pointer;
       }
+      #cancel-picture{
+        margin-right: 30px;
+      }
     </style>
   </head>
   <body>
@@ -119,7 +122,7 @@
       <video id="camera-stream" autoplay></video>
     
       <div id="items">
-        <button id="cancel-picture"> Cancel</button>
+        <button id="cancel-picture"> 🚫</button>
         <button id="take-picture">📸</button>
       </div>
       
