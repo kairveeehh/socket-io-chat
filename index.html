@@ -3,6 +3,7 @@
   <head>
     <meta name="viewport" content="width=device-width,initial-scale=1.0">
     <title>Socket.IO chat</title>
+    <script type="module" src="https://cdn.jsdelivr.net/npm/emoji-picker-element@^1/index.js"></script>
     <style>
       body { margin: 0; padding-bottom: 3rem; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
 
@@ -14,6 +15,7 @@
       #messages { list-style-type: none; margin: 0; padding: 0; }
       #messages > li { padding: 0.5rem 1rem; }
       #messages > li:nth-child(odd) { background: #efefef; }
+
       #emoji-button { 
         background: #333; 
         border: none; 
@@ -31,10 +33,18 @@
         z-index: 9999;
         display: none;
       }
+      .message-container {
+        display: flex;
+        justify-content: space-between;
+      }
+      .message-text {
+        flex-grow: 1;
+      }
+      .message-timer {
+        font-size: 0.8em;
+        color: #999;
+      }
     </style>
-    <script type="module" src="https://cdn.jsdelivr.net/npm/emoji-picker-element@^1/index.js"></script>
-   
-  </head>
   </head>
   <body>
     <ul id="messages"></ul>
@@ -47,43 +57,100 @@
   </body>
   <script src="/socket.io/socket.io.js"></script>
   <script>
-     const socket = io();
+    const socket = io();
 
-const form = document.getElementById('form');
-const input = document.getElementById('input');
-const messages = document.getElementById('messages');
-const emojiButton = document.getElementById('emoji-button');
-const emojiPicker = document.getElementById('emoji-picker');
+    const form = document.getElementById('form');
+    const input = document.getElementById('input');
+    const messages = document.getElementById('messages');
+    const emojiButton = document.getElementById('emoji-button');
+    const emojiPicker = document.getElementById('emoji-picker');
 
-emojiButton.addEventListener('click', () => {
-  emojiPicker.style.display = emojiPicker.style.display === 'none' ? 'block' : 'none';
-});
+    let storedMessages = [];
 
-emojiPicker.addEventListener('emoji-click', event => {
-  input.value += event.detail.unicode;
-  emojiPicker.style.display = 'none';
-});
+    function addMessageToDOM(msg) {
+      const item = document.createElement('li');
+      item.innerHTML = `
+        <div class="message-container" data-timestamp="${msg.timestamp}">
+          <span class="message-text">${msg.text}</span>
+          <span class="message-timer"></span>
+        </div>
+      `;
+      messages.appendChild(item);
+      updateMessageTimer(msg.timestamp);
+      window.scrollTo(0, document.body.scrollHeight);
+    }
 
-form.addEventListener('submit', (e) => {
-  e.preventDefault();
-  if (input.value) {
-    socket.emit('chat message', input.value);
-    input.value = '';
-  }
-});
+    function updateMessageTimer(timestamp) {
+      const container = document.querySelector(`[data-timestamp="${timestamp}"]`);
+      if (container) {
+        const timerSpan = container.querySelector('.message-timer');
+        const timeLeft = Math.max(0, 2 * 60 - Math.floor((Date.now() - timestamp) / 1000));
+        const minutes = Math.floor(timeLeft / 60);
+        const seconds = timeLeft % 60;
+        timerSpan.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        
+        if (timeLeft === 0) {
+          deleteMessage(timestamp);
+        }
+      }
+    }
 
-socket.on('chat message', (msg) => {
-  const item = document.createElement('li');
-  item.textContent = msg;
-  messages.appendChild(item);
-  window.scrollTo(0, document.body.scrollHeight);
-});
+    function deleteMessage(timestamp) {
+      const element = document.querySelector(`[data-timestamp="${timestamp}"]`);
+      if (element) {
+        element.parentElement.remove();
+      }
+      storedMessages = storedMessages.filter(msg => msg.timestamp !== timestamp);
+      localStorage.setItem('chatMessages', JSON.stringify(storedMessages));
+    }
 
-// Close emoji picker when clicking outside
-document.addEventListener('click', (event) => {
-  if (!emojiButton.contains(event.target) && !emojiPicker.contains(event.target)) {
-    emojiPicker.style.display = 'none';
-  }
-});
+    emojiButton.addEventListener('click', () => {
+      emojiPicker.style.display = emojiPicker.style.display === 'none' ? 'block' : 'none';
+    });
+
+    emojiPicker.addEventListener('emoji-click', event => {
+      input.value += event.detail.unicode;
+      emojiPicker.style.display = 'none';
+    });
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      if (input.value) {
+        socket.emit('chat message', input.value);
+        input.value = '';
+      }
+    });
+
+    socket.on('initial messages', (initialMessages) => {
+      storedMessages = initialMessages;
+      localStorage.setItem('chatMessages', JSON.stringify(storedMessages));
+      messages.innerHTML = '';
+      storedMessages.forEach(addMessageToDOM);
+    });
+
+    socket.on('chat message', (msg) => {
+      storedMessages.push(msg);
+      localStorage.setItem('chatMessages', JSON.stringify(storedMessages));
+      addMessageToDOM(msg);
+    });
+
+    socket.on('delete message', (timestamp) => {
+      deleteMessage(timestamp);
+    });
+
+    setInterval(() => {
+      storedMessages.forEach(msg => updateMessageTimer(msg.timestamp));
+    }, 1000);
+
+    document.addEventListener('click', (event) => {
+      if (!emojiButton.contains(event.target) && !emojiPicker.contains(event.target)) {
+        emojiPicker.style.display = 'none';
+      }
+    });
+
+    window.addEventListener('load', () => {
+      const localMessages = JSON.parse(localStorage.getItem('chatMessages')) || [];
+      localMessages.forEach(addMessageToDOM);
+    });
   </script>
 </html>

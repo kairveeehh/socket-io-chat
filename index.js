@@ -1,23 +1,38 @@
 const express = require('express');
-const { createServer } = require('node:http');
-const { join } = require('node:path');
-const { Server } = require('socket.io');
-
 const app = express();
-const server = createServer(app);
-const io = new Server(server);
+const http = require('http').Server(app);
+const io = require('socket.io')(http);
+const port = process.env.PORT || 3000;
 
 app.get('/', (req, res) => {
-  res.sendFile(join(__dirname, 'index.html'));
+  res.sendFile(__dirname + '/index.html');
 });
 
-io.on('connection', (socket) => {
-  socket.on('chat message', (msg) => {
+const messages = [];
 
-    io.emit('chat message', msg);
+function deleteMessage(timestamp) {
+  const index = messages.findIndex(m => m.timestamp === timestamp);
+  if (index !== -1) {
+    messages.splice(index, 1);
+    io.emit('delete message', timestamp);
+  }
+}
+
+io.on('connection', (socket) => {
+  // Send existing messages to the new client
+  socket.emit('initial messages', messages);
+
+  socket.on('chat message', (msg) => {
+    const timestamp = Date.now();
+    const newMessage = { text: msg, timestamp: timestamp };
+    messages.push(newMessage);
+    io.emit('chat message', newMessage);
+
+    // Set a timeout to delete the message after 2 minutes
+    setTimeout(() => deleteMessage(timestamp), 2 * 60 * 1000); // 2 minutes in milliseconds
   });
 });
 
-server.listen(3000, () => {
-  console.log('server running at http://localhost:3000');
+http.listen(port, () => {
+  console.log(`Socket.IO server running at http://localhost:${port}/`);
 });
