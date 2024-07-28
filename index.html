@@ -14,35 +14,76 @@
       #messages { list-style-type: none; margin: 0; padding: 0; }
       #messages > li { padding: 0.5rem 1rem; }
       #messages > li:nth-child(odd) { background: #efefef; }
+      #emoji-button { 
+        background: #333; 
+        border: none; 
+        padding: 0 1rem; 
+        margin: 0.25rem; 
+        border-radius: 3px; 
+        outline: none; 
+        color: #fff; 
+        cursor: pointer;
+      }
+      #emoji-picker {
+        position: fixed;
+        bottom: 70px;
+        right: 20px;
+        z-index: 9999;
+        display: none;
+      }
     </style>
+    <script type="module" src="https://cdn.jsdelivr.net/npm/emoji-picker-element@^1/index.js"></script>
+   
+  </head>
   </head>
   <body>
     <ul id="messages"></ul>
     <form id="form" action="">
-      <input id="input" autocomplete="off" /><button>Send</button>
+      <input id="input" autocomplete="off" />
+      <button id="emoji-button" type="button">😊</button>
+      <button>Send</button>
     </form>
+    <emoji-picker id="emoji-picker"></emoji-picker>
   </body>
   <script src="/socket.io/socket.io.js"></script>
   <script>
-    const socket = io();
-  
-    const form = document.getElementById('form');
-    const input = document.getElementById('input');
-    const messages = document.getElementById('messages');
-  
-    form.addEventListener('submit', (e) => {
-      e.preventDefault();
-      if (input.value) {
-        socket.emit('chat message', input.value);
-        input.value = '';
-      }
-    });
-  
-    socket.on('chat message', (msg) => {
-      const item = document.createElement('li');
-      item.textContent = msg;
-      messages.appendChild(item);
-      window.scrollTo(0, document.body.scrollHeight);
-    });
+     const socket = io();
+
+const form = document.getElementById('form');
+const input = document.getElementById('input');
+const messages = document.getElementById('messages');
+const emojiButton = document.getElementById('emoji-button');
+const emojiPicker = document.getElementById('emoji-picker');
+
+emojiButton.addEventListener('click', () => {
+  emojiPicker.style.display = emojiPicker.style.display === 'none' ? 'block' : 'none';
+});
+
+emojiPicker.addEventListener('emoji-click', event => {
+  input.value += event.detail.unicode;
+  emojiPicker.style.display = 'none';
+});
+
+form.addEventListener('submit', (e) => {
+  e.preventDefault();
+  if (input.value) {
+    socket.emit('chat message', input.value);
+    input.value = '';
+  }
+});
+
+socket.on('chat message', (msg) => {
+  const item = document.createElement('li');
+  item.textContent = msg;
+  messages.appendChild(item);
+  window.scrollTo(0, document.body.scrollHeight);
+});
+
+// Close emoji picker when clicking outside
+document.addEventListener('click', (event) => {
+  if (!emojiButton.contains(event.target) && !emojiPicker.contains(event.target)) {
+    emojiPicker.style.display = 'none';
+  }
+});
   </script>
 </html>
